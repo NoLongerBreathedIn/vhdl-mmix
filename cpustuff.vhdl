@@ -130,11 +130,9 @@ end;
 
 architecture a1 of fonreg8 is
   signal as, bs, ds : bit_vector (0 to 63);
-  signal aa : bit;
 begin
-  iaa : or_comb generic map (8) port map (a, aa);
   sta : mor_expand_z port map (a, as);
-  whb : mux2 generic map (128) port map (a, f&f, as&d, bs&ds);
+  whb : or_gate generic map (128) port map (f&f, as&d, bs&ds);
   rrg : da_reg generic map (6, 6) port map (bs, c, ds, o);
 end;
 
