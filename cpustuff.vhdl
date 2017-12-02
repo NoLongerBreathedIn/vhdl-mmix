@@ -158,21 +158,18 @@ entity sregs is
         sdro, rdo, reo, rio, rmo : out bit_vector (0 to 63);
         roo, rso, ruo, rvo : out bit_vector (0 to 63);
         rao : out bit_vector (0 to 31);
-        rgo, rlo, qkv : out bit_vector (0 to 7);
-        rkp, qka : out bit);
+        rgo, rlo, kpb : out bit_vector (0 to 7);
+        qka : out bit);
 end;
 
 architecture a1 of sregs is
   type regs is array (0 to 31) of bit_vector (0 to 63);
   signal post : regs;
-  signal qak2 : bit_vector (0 to 7);
   signal activate, wbytes, wregs : bit_vector (0 to 255);
-  signal aiuos, qak3 : bit_vector (0 to 3);
-  signal iuosw, qak0 : bit_vector (0 to 31);
-  signal qak1 : bit_vector (0 to 16);
-  signal glw, qak4 : bit_vector (0 to 1);
+  signal aiuos : bit_vector (0 to 3);
+  signal iuosw : bit_vector (0 to 31);
+  signal glw : bit_vector (0 to 1);
   signal qak : bit_vector (0 to 63);
-  signal qakb : bit_vector (0 to 5);
 begin
   suios : for i in 0 to 3 generate
   begin
@@ -225,33 +222,15 @@ begin
   cwrg : dmxn generic map (3, 5) port map (srs(3 to 7), '1', wregs);
   byreg : and_gate generic map (256) port map (wbytes, wregs, activate);
   whsr : muxn generic map (64, 5) port map (post, srso(3 to 7), sdro);
-  allk : and_comb generic map (8) port map (post(15)(24 to 31), rkp);
   nqk : and_gate generic map (64) port map (post(15), post(16), qak);
   neqk : or_comb generic map (64) port map (qak, qka);
-  qko0 : or_comb generic map (32) port map (qak(32 to 63), qakb(0));
-  sqk0 : mux2 generic map (32) port map (qakb(0), qak(32 to 63),
-                                         qak(0 to 31), qak0);
-  qko1 : or_comb generic map (16) port map (qak0(16 to 31), qakb(1));
-  sqk1 : mux2 generic map (16) port map (qakb(1), qak0(16 to 31),
-                                         qak0(0 to 16), qak1);
-  qko2 : or_comb generic map (8) port map (qak1(8 to 15), qakb(2));
-  sqk2 : mux2 generic map (8) port map (qakb(2), qak1(8 to 15),
-                                        qak1(0 to 7), qak2);
-  qko3 : or_comb generic map (4) port map (qak2(4 to 7), qakb(3));
-  sqk3 : mux2 generic map (4) port map (qakb(3), qak2(4 to 7),
-                                        qak2(0 to 3), qak3);
-  qko4 : or_comb generic map (2) port map (qak3(2 to 3), qakb(4));
-  sqk4 : mux2 generic map (2) port map (qakb(4), qak3(2 to 3),
-                                        qak3(2 to 3), qak4);
-  fqk : not_gate generic map (6) port map (qakb, qkv(2 to 7));
-  qkv(0 to 1) <= b"00";
-  qakb(5) <= qak4(1);
   post(21)(0 to 31) <= (others => '0'); -- rA
   post(9) <= h"010100005A1EEBF7"; -- rN
   wbytes <= sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&
             sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw;
   iuosw <= riw&ruw&row&rsw;
   glw <= rgw&rlw;
+  kpb <= post(15)(24 to 31);
   rao <= post(21)(32 to 63);
   rdo <= post(1);
   reo <= post(2);
@@ -273,8 +252,8 @@ component sregs
         sdro, rdo, reo, rio, rmo : out bit_vector (0 to 63);
         roo, rso, ruo, rvo : out bit_vector (0 to 63);
         rao : out bit_vector (0 to 31);
-        rgo, rlo, qkv : out bit_vector (0 to 7);
-        rkp, qka : out bit);
+        rgo, rlo, kpb : out bit_vector (0 to 7);
+        qka : out bit);
 end;
 
 entity mcstack is

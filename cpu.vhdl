@@ -66,22 +66,21 @@
 -- Put ABCDE (base 1024) into oreg 9, read A from wreg 28, B from wreg 29, etc.
 -- These are read-only, and the bits set are 3-12.
 -- Wregister 2D (bregs 5A,5B) is bits 51-63 of rV. (ror)
--- Tregister 27 (bregs 5C-5F) is bits 24-50 of rV. (ror)
--- Bregister 60 is the location of the last on bit of rQ&rK. (ror)
+-- Tregister 027 (bregs 5C-5F) is bits 24-50 of rV. (ror)
+-- Bregister 60 causes arithmetic exceptions.
+-- The exceptions raised are those raised by the ALU and FPU normally,
+-- together with those in 60.
 -- Bregister 61 is the leftmost enabled and triggered arithmetic exception,
 -- in bits 1 to 3. Bits 4-7 are off; bit 0 is on if bits 1-3 are off. (ror)
 -- Bregister 62 is the third byte of rV. (ror)
 -- Oregister 12, except for its high three bytes (bregs 63-67),
--- is the translation cache data register (TCDR).
--- Oregister 13 (bregs 68-6F) is the translation cache access register (TCAR).
+-- is the translation cache value register (TCVR).
+-- Oregister 13 (bregs 68-6F) is the translation cache key register (TCKR).
 -- Oregister 14 (bregs 70-77) should probably be used
 -- for the instruction pointer. It has no special meaning.
 -- Oregisters 15-18 (bregs 78-97) contain rO, rS, rI, rU in that order.
 -- Oregister 19 (bregs 98-9F) contains L(y) - see p. 49 of MMIXware.
--- Bregister FE is copied into iflags 10-17.
--- Bregister FF causes arithmetic exceptions.
--- The exceptions raised are those raised by the ALU and FPU normally,
--- together with those in FF.
+-- Bregister FF is copied into iflags 10-17.
 -- Remaining registers have no special meaning; plenty of those.
 --
 -- Iflags:
@@ -90,7 +89,7 @@
 -- Iflag 2 is the ALU negative flag.
 -- Iflag 3 is the ALU error flag.
 -- Iflag 4 is the ALU frem-not-finished flag.
--- Iflag 5 is on if rQ^rK is nonzero.
+-- Iflag 5 is on if rQ&rK is nonzero.
 -- Iflag 6 is on if the instruction translation cache contains the TCAR.
 -- Iflag 7 is like iflag 6, except data instead of instructions.
 -- Iflags 8-A are bits 13-15 of wreg 22.
@@ -98,13 +97,14 @@
 -- Iflag C is the memory-not-finished flag. This is related only to the last
 -- memory operation.
 -- Iflag D is always off.
--- Iflags 10-17 are the bits of breg FE.
+-- Iflags 10-17 are the bits of breg FF.
+-- Iflags 18-1F are the program bits of rK.
 -- The remaining iflags are currently unassigned.
 --
 -- Oflags:
 -- Oflags 0-7 force on the corresponding program bits (rwxnkbsp) of rQ;
 -- oflag 6 also forces on the s bit of rK.
--- Oflag 8 sets MDR = m8[MAR] (memory read).
+-- Oflag 8 sets MDR = m8[MAR] (memory read). This is treated as data.
 -- Oflag 9 sets m8[MAR] = MDR (memory write).
 -- (The high bit of MAR is ignored.)
 -- Oflag A clears the data cache block containing MAR
@@ -126,23 +126,25 @@
 -- and forces writing.
 -- Oflag 14 is like oflag D, except the cache blocks affected are those for
 -- oflag 13.
--- Oflag 15 clears the instruction cache; blocks affected are as in D.
+-- Oflag 15 clears the instruction cache; blocks affected are as in 13.
 -- Oflag 16 deletes the entire instruction cache.
--- Oflag 17 sets TCDR = ITC[TCAR]
--- Oflag 18 sets ITC[TCAR] = TCDR
--- Oflag 19 sets the last three bits of ITC[TCAR] to those of
--- TCAR if they are not all 0. Otherwise, it deletes ITC[TCAR].
+-- Oflag 17 sets TCVR = ITC[TCKR]
+-- Oflag 18 sets ITC[TCKR] = TCVR
+-- Oflag 19 sets the last three bits of ITC[TCVR] to those of
+-- TCVR if they are not all 0. Otherwise, it deletes ITC[TCVR].
 -- Oflags 1A-1C act like 17-19, except they work with the DTC.
 -- Oflag 1D deletes the entire ITC and DTC.
 -- Oflag 1E forces on the seventh-to-last bit of rQ.
 -- Oflag 1F sets rR.
 -- Oflag 20 sets rH.
 -- Oflag 21 sets rA.
+-- Oflag 22 acts like oflag 8, except it's for instruction reads.
+-- Oflag 23 acts like oflag 13, except it doesn't write.
 -- The remaining oflags are currently unassigned.
 -- Standard idiom for reading/writing/frobbing memory is
 -- 5 FF Y (AST Y)
 -- 5 FE 0C (BIF -1 C)
--- where the second instruction may be omitted if Y is A-C, 12, 15, or 16,
+-- where the second instruction may be omitted if Y is A-C, 12, 15, 16, or 23,
 -- as those never cause busyness.
 
 type ucode is array (0 to 65535) of bit_vector (0 to 18);
@@ -330,13 +332,17 @@ begin
                                              uregs(8)(32 to 47));
   treg1 : da_reg generic map (2, 5) port map (wrts(4 to 7), clock,
                                               oregs(32 to 63),
+                                              uregs(0)(32 to 63));
   wreg22 : da_reg generic map (1, 4) port map (wrts(68 to 69), clock,
                                                oregs(32 to 47),
                                                uregs(8)(32 to 47));
+  breg60 : da_reg generic map (0, 3) port map (wrts(96), clock,
+                                               oregs(0 to 7),
+                                               uregs(12)(0 to 7));
   afu : mmix_afu generic map (fremstg) port map (uregs(1), uregs(2),
                                                  rm, rd, re, rab,
                                                  uregs(0)(0 to 7),
-                                                 uregs(31)(56 to 63),
+                                                 uregs(12)(0 to 7),
                                                  uregs(3),
                                                  rh, rr, raa,
                                                  iflags(0), iflags(1),
@@ -354,7 +360,8 @@ begin
                                 uregs(4), rd, re, uregs(17), rm,
                                 uregs(15), uregs(16), uregs(18), rv,
                                 rab, uregs(0)(16 to 23), uregs(0)(24 to 31),
-                                uregs(12)(0 to 7), iflags(11), iflags(5));
+                                iflags(24 to 31), iflags(5));
+  akpb : or_comb generic map (8) port map (iflags(24 to 31), iflags(11));
   mmix_gpregs : gregs generic map (llocs)
     port map (uregs(16), uregs(15), oregs,
               uregs(0)(16 to 23), uregs(0)(24 to 31), uregs(9)(0 to 7),
@@ -380,23 +387,23 @@ begin
                          iflags(8 to 10));
   cache : memcache generic map (memto, memfr) port map (uregs(6), uregs(7),
                                                         oflags(9), oflags(8),
-                                                        oflags(10), oflags(11),
-                                                        oflags(12), oflags(13),
-                                                        oflags(14), oflags(15),
-                                                        oflags(16), oflags(18),
-                                                        oflags(19), oflags(20),
-                                                        oflags(21), oflags(22),
+                                                        oflags(34), oflags(10),
+                                                        oflags(11), oflags(12),
+                                                        oflags(13), oflags(14),
+                                                        oflags(15), oflags(16)
+                                                        oflags(18), oflags(19),
+                                                        oflags(20), oflags(21),
+                                                        oflags(22), oflags(35),
                                                         clock, memmdro, rf,
                                                         parerr, nomem,
                                                         iflags(12), wrmdr,
                                                         frmem, tomem);
   iflags(13 to 15) <= o"0";
-  iflags(16 to 23) <= uregs(31)(48 to 55);
+  iflags(16 to 23) <= uregs(31)(56 to 63);
   iflags(24 to 127) <= (others => '0');
   sleep <= oflags(17);
   uregs(12)(12 to 15) <= h"0";
   atcw <= oflags(25) or oflags(26);
-
 end;
 
 component mmix_full_cpu

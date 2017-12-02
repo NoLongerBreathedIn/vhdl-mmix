@@ -21,7 +21,8 @@ end;
 -- memto: how many bits do we send to the memory?
 -- memfr: how many bits does the memory send us?
 -- wrt: write
--- rd: read
+-- rdd: read data
+-- rdi: read instruction
 -- cdbk: clear data cache block containing MAR (i.e., set it up to be
 -- next to forget)
 -- pldd: preload data cache blocks containing any locations between MDR and MAR
@@ -32,10 +33,11 @@ end;
 -- unlock: release hold, stop bypassing cache
 -- clnd: Write all dirty blocks in data cache
 -- deld: Delete data cache. Do not write.
--- clnbt: Write dirty blocks containing any locations between MDR and MAR
+-- clnbt: Write dirty blocks containing any locations between MDR and MAR.
 -- delba: As delbt, except change only to any.
--- clri: As delbt, but instruction cache
+-- clri: As delba, but instruction cache
 -- deli: As deld, but instruction cache
+-- clrbt: As delba, but does not write
 -- floc: Memory failure location (nonsense unless parerr or nomem set)
 -- parerr: Parity error; floc set to location thereof.
 -- nomem: Missing memory; floc set to location thereof if no parity error.
@@ -46,8 +48,8 @@ end;
 entity memcache is
   generic (memto, memfr : integer);
   port (mar, mdri : in bit_vector (0 to 63);
-        wrt, rd, cdbk, pldd, pldi, delbt, lock, unlock : in bit;
-        clnd, deld, clnbt, delba, clri, deli, clock : in bit;
+        wrt, rdd, rdi, cdbk, pldd, pldi, delbt, lock, unlock : in bit;
+        clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
         mdro, floc : out bit_vector (0 to 63);
         parerr, nomem, busy, wtmdr : out bit,
         frmem : in bit_vector (0 to memto-1);
@@ -57,8 +59,8 @@ end;
 component memcache
   generic (memto, memfr : integer);
   port (mar, mdri : in bit_vector (0 to 63);
-        wrt, rd, cdbk, pldd, pldi, delbt, lock, unlock : in bit;
-        clnd, deld, clnbt, delba, clri, deli, clock : in bit;
+        wrt, rdd, rdi, cdbk, pldd, pldi, delbt, lock, unlock : in bit;
+        clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
         mdro, floc : out bit_vector (0 to 63);
         parerr, nomem, busy : out bit,
         frmem : in bit_vector (0 to memto-1);
