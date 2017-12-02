@@ -1,4 +1,4 @@
-This is a microcode implementation of MMIX.
+This is a microcode implementation of MMIX, in slightly-off VHDL.
 
 The following things have not been written:  
 Virtual address translation caches  
@@ -196,7 +196,7 @@ an instruction normally.
 (Attempting to set `rQ` to `x` sets it instead to `x|rQ&~prQ`,
 according to the documentation.
 To do this takes five microinstructions.
-(`MVO ALUZ prQ; SET ALUS ANDN; SET SRS rQ` to set up
+(`MVO ALUZ prQ; SET ALUS ANDN; SET SRS rQ` to set up,
 then `MVO ALUY SDR; MVO ALUZ ALUX; SET ALUS OR; MVO ALUY x; MVO SDR ALUX`
 to complete)
 so interrupts might be ignored by accident if they stay on for fewer than
