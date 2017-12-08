@@ -1,8 +1,8 @@
 This is a microcode implementation of MMIX, in slightly-off VHDL.
 
-The following things have not been written:  
-Virtual address translation caches  
-Memory cache  
+The following things have not been written:
+Virtual address translation caches
+Memory cache
 The actual microcode
 
 The microcode implementation is very Harvard-architecture.
@@ -25,28 +25,31 @@ Instructions are 19 bits long; the opcode is the first three bits,
 followed by a one-byte `X` field and a one-byte `Y` field.
 There is an implicit increment of `uP` (the microcode pointer)
 after every instruction.
-(`uS` stands for the microcode stack,
-and `uP` is its top.)
+(`uS` stands for the microcode stack;
+`uPS` stands for the microcode stack including `uP`.)
 Instructions are:
 
-| Abbreviation | Opcode | `X`        | `Y`         | Meaning                   | Notes                                                                 |
-|--------------|--------|------------|-------------|---------------------------|-----------------------------------------------------------------------|
-| `MVB bA bB`  | 0      | `A`        | `B`         | `bA <= bB`                |                                                                       |
-| `MVW wA wB`  | 1      | `2A`       | `2B`        | `wA <= wB`                | The last bit of `X` and `Y` are ignored.                              |
-| `MVT tA tB`  | 2      | `4A`       | `4B`        | `tA <= tB`                | The last two bits of `X` and `Y` are ignored.                         |
-| `MVO uA uB`  | 3      | `8A`       | `8B`        | `uA <= uB`                | The last three bits of `X` and `Y` are ignored.                       |
-| `SET bA V`   | 4      | `A`        | `V`         | `bA <= V`                 |                                                                       |
-| `BIF N iA`   | 5      | `N`        | `A`         | `uP <= uP + (iA? N : 0)`  | `N` may not be 0. It is represented in two's complement.              |
-| `BUN N iA`   | 5      | `N`        | `A+0x80`    | `uP <= uP  + (iA? 0 : N)` | `N` may not be 0. It is represented in two's complement.              |
-| `AST oA`     | 5      | `0x00`     | `A`         | `oA <= true`              | All output flags are false unless the current instruction is an AST.  |
-| `PGO L`      | 6      | `(L-1)>>8` | `(L%256)-1` | `push(uS, L-1)`           |                                                                       |
-| `POP`        | 7      | `0x00`     | `0x00`      | `pop(uS)`                 | The first five bits of `X` and all of `Y` are ignored.                |
-| `CLW wN`     | 7      | `0x01`     | `2N`        | `wN <= 0`                 | The first six bits of `X` and the last bit of `Y` are ignored.        |
-| `CLT tN`     | 7      | `0x02`     | `4N`        | `tN <= 0`                 | The first six bits of `X` and the last two bits of `Y` are ignored.   |
-| `CLO uN`     | 7      | `0x03`     | `8N`        | `uN <= 0`                 | The first six bits of `X` and the last three bits of `Y` are ignored. |
-| `CJP wN`     | 7      | `0x04`     | `2N`        | `uP <= wN`                | The first five bits of `X` and the last bit of `Y` are ignored.       |
+| Abbreviation | Opcode | `X`         | `Y`          | Meaning                  |
+|--------------|--------|-------------|--------------|--------------------------|
+| `MVB bA bB`  | 0      | `A`         | `B`          | `bA <= bB`               |
+| `MVW wA wB`  | 1      | `2A`        | `2B`         | `wA <= wB`               |
+| `MVT tA tB`  | 2      | `4A`        | `4B`         | `tA <= tB`               |
+| `MVO uA uB`  | 3      | `8A`        | `8B`         | `uA <= uB`               |
+| `SET bA V`   | 4      | `A`         | `V`          | `bA <= V`                |
+| `BIF N iA`   | 5      | `N`         | `A`          | `uP <= uP + (iA? N : 0)` |
+| `BUN N iA`   | 5      | `N`         | `A + 0x80`   | `uP <= uP + (iA? 0 : N)` |
+| `AST oA`     | 5      | `0x80`      | `A`          | `oA <= true`             |
+| `PGO L`      | 6      | `(L-1)/256` | `(L-1)%256`  | `push(uPS, L-1)`         |
+| `POP`        | 7      | `0x00`      | `0x00`       | `pop(uPS)`               |
+| `PST`        | 7      | `0x80`      | `0x00`       | `pop(uS)`                |
+| `CJP wN`     | 7      | `0x04`      | `2N`         | `uP <= wN`               |
+| `CLW wN`     | 7      | `0x01`      | `2N`         | `wN <= 0`                |
+| `CLT tN`     | 7      | `0x02`      | `4N`         | `tN <= 0`                |
+| `CLO oN`     | 7      | `0x03`      | `8N`         | `uN <= 0`                |
 
 There is no `CLB bN` instruction, as it would be equivalent to `SET bN 0x00`.
+For branches, `N` is represented in two's complement and may not be 0.
+All output flags are false unless the current instruction is an `AST`.
 
 There are also plenty of special registers
 (in other words, registers with special meanings):
@@ -68,31 +71,28 @@ There are also plenty of special registers
 | `CND`   | `bFF`   | Bit-test register. Set a byte here, its bits are `CND0` to `CND7`.                                                                                                                         |               |
 | `GDR`   | `u5`    | General-purpose register data. If `GRS<rL`, equivalent to `l[α+GRS]`; if `GRS≥rG`, equivalent to `g[GRS]` (see MMIXware on the register stack); otherwise read-only and gives 0 when read. |               |
 | `GRS`   | `b48`   | General-purpose register selector.                                                                                                                                                         |               |
-| `INS`   | `t01`   | The instruction we are currently executing. Should not be modified by instruction code unless we are doing a RESUME.                                                                       |               |
+| `INS`   | `t1`    | The instruction we are currently executing. Should not be modified by instruction code unless we are doing a `RESUME`.                                                                     |               |
 | `IP`    | `u14`   | MMIX instruction pointer.                                                                                                                                                                  |               |
-| `Ly`    | `u19`   | Equivalent to `l[γ]` (see MMIXware on the register stack).                                                                                                                                 |               |
-| `MAR`   | `u6`    | Memory access register.                                                                                                                                                                    |               |
-| `MDR`   | `u7`    | Memory data register.                                                                                                                                                                      |               |
+| `Ly`    | `u18`   | Equivalent to l[γ] (see MMIXware on the register stack).                                                                                                                                   |               |
+| `MAR`   | `u7`    | Memory access register.                                                                                                                                                                    |               |
+| `MDR`   | `u6`    | Memory data register.                                                                                                                                                                      |               |
 | `prQ`   | `u30`   | The value of `rQ` when it was last read.                                                                                                                                                   |               |
-| `PTN`   | `w23`   | Bits 3-12 of `PTW`, in positions `3-12` (other positions are blank).                                                                                                                       |               |
-| `PTW`   | `w22`   | Page table handler. Bits 13-15 are `PTPR`, `PTPW`, and `PTPX`.                                                                                                                             |               |
-| `RES`   | `u29`   | Result of emulated instruction, for storing in `$X`.                                                                                                                                       |               |
-| `rG`    | `b02`   | MMIX's `rG`.                                                                                                                                                                               |               |
-| `rI`    | `u17`   | Interval timer.                                                                                                                                                                            |               |
-| `rL`    | `b03`   | MMIX's `rL`.                                                                                                                                                                               |               |
+| `PTN`   | `w23`   | Bits 3-12 of `PTW`, in positions 3-12 (other positions are blank).                                                                                                                         | √             |
+| `PTW`   | `w22`   | Page table handler. Bits 13-15 are placed in iflags.                                                                                                                                       |               |
+| `rG`    | `b2`    | MMIX's `rG`.                                                                                                                                                                               |               |
+| `rL`    | `b3`    | MMIX's `rL`.                                                                                                                                                                               |               |
 | `rO`    | `u15`   | MMIX's `rO`.                                                                                                                                                                               |               |
 | `rS`    | `u16`   | MMIX's `rS`.                                                                                                                                                                               |               |
-| `rU`    | `u18`   | MMIX's `rU`.                                                                                                                                                                               |               |
+| `rU`    | `u17`   | MMIX's `rU`.                                                                                                                                                                               |               |
 | `rX`    | `u26`   | What should be stored in `rX` if we trip?                                                                                                                                                  |               |
 | `rY`    | `u27`   | What should be stored in `rY` if we trip?                                                                                                                                                  |               |
 | `rZ`    | `u28`   | What should be stored in `rZ` if we trip?                                                                                                                                                  |               |
 | `SDR`   | `u4`    | Hardwired to special register `SRS%32`.                                                                                                                                                    |               |
-| `SRS`   | `b01`   | Special register selector.                                                                                                                                                                 |               |
+| `SRS`   | `b1`    | Special register selector.                                                                                                                                                                 |               |
 | `TCKR`  | `u13`   | Holds the translation cache key.                                                                                                                                                           |               |
-| `TCVR`  | `u12`   | Holds the translation cache value. Note that the high byte of this is `ALUEF` (and the next two are ALUEP and Vs), so be careful!                                                          |               |
-| `TT`    | `t76`   | Should hold the nominal time taken for an instruction.                                                                                                                                     |               |
-| `Um`    | `b91`   | The MMIX usage mask, the second byte of `rU`.                                                                                                                                              |               |
-| `Up`    | `b90`   | The MMIX usage pattern, the first byte of `rU`.                                                                                                                                            |               |
+| `TCVR`  | `u12`   | Holds the translation cache value. Note that the high byte of this is `ALUEF` (and the next two are `ALUEP` and `Vs`), so be careful!                                                      |               |
+| `Um`    | `b89`   | The MMIX usage mask, the second byte of `rU`.                                                                                                                                              |               |
+| `Up`    | `b88`   | The MMIX usage pattern, the first byte of `rU`.                                                                                                                                            |               |
 | `Vb1`   | `b40`   | The `b1` field of `rV`. See MMIXware under 'virtual address translation'.                                                                                                                  | √             |
 | `Vb2`   | `b41`   | The `b2` field of `rV`. See MMIXware under 'virtual address translation'.                                                                                                                  | √             |
 | `Vb3`   | `b42`   | The `b3` field of `rV`. See MMIXware under 'virtual address translation'.                                                                                                                  | √             |
@@ -101,14 +101,15 @@ There are also plenty of special registers
 | `Vr`    | `t27`   | The `r` (root) field of `rV`. See MMIXware under 'virtual address translation'.                                                                                                            | √             |
 | `Vs`    | `b62`   | The `s` (page size) field of `rV`. See MMIXware under 'virtual address translation'.                                                                                                       | √             |
 
+A register may be divided up into two, four, or eight pieces of equal size,
+so long as they are all at least one byte long.
+These pieces are referred to with the suffixes `.h` and `.l` for two,
+`.h`, `.mh`, `.ml`, and `.l` for four,
+and `.[0-7]` for eight (in numerical order); size is inferred from instruction.
+
 Attempts to write a read-only register simply fail.
 Attempts to write read-only and read-write registers simultaneously
 succeed at writing read-write registers.
-
-Following up a multi-byte register with `.n`
-refers to the `n`th subregister of the proper width thereof.
-`.h` and `.l` refer to the first and last such subregisters,
-while `.mh` and `.ml` refer to the second and third of exactly four.
 
 MMIX special-register abbreviations and opcode abbreviations are treated as
 their MMIX numerical equivalents in the `V` field of `SET`.
@@ -124,41 +125,40 @@ The flags are as follows:
 | `CACCDBK`  | `o0A`   | The data-cache block containing `MAR` should be the next to be replaced.                                                                                           |
 | `CACCLNBT` | `o13`   | Data-cache blocks containing any addresses between `MDR` and `MAR` should be written to core if dirty.                                                             |
 | `CACCLND`  | `o10`   | Write all dirty blocks in the data cache to core.                                                                                                                  |
-| `CACCLRBT` | `o23`   | Data-cache blocks containing any addresses between `MDR` and `MAR` should be deleted.                                                                              |
-| `CACCLRI`  | `o16`   | Instruction-cache blocks containing any addresses between `MDR` and `MAR` should be deleted.                                                                       |
-| `CACDELBA` | `o13`   | Data-cache blocks containing any addresses between `MDR` and `MAR` should be written to core if dirty and deleted.                                                 |
+| `CACCLRBT` | `o21`   | Data-cache blocks containing any addresses between `MDR` and `MAR` should be deleted.                                                                              |
+| `CACCLRI`  | `o15`   | Instruction-cache blocks containing any addresses between `MDR` and `MAR` should be deleted.                                                                       |
+| `CACDELBA` | `o14`   | Data-cache blocks containing any addresses between `MDR` and `MAR` should be written to core if dirty and deleted.                                                 |
 | `CACDELBT` | `o0D`   | Data-cache blocks containing only addresses between `MDR` and `MAR` should be written to core if dirty and deleted.                                                |
 | `CACDELD`  | `o12`   | Delete the data cache.                                                                                                                                             |
 | `CACDELI`  | `o16`   | Delete the instruction cache.                                                                                                                                      |
 | `CACPLDD`  | `o0B`   | Preload data-cache blocks containing any addresses between `MDR` and `MAR`.                                                                                        |
 | `CACPLDI`  | `o0C`   | Preload instruction-cache blocks containing any addresses between `MDR` and `MAR`.                                                                                 |
-| `CNDi`     | `i1i`   | The ith bit of `bFF`.                                                                                                                                              |
+| `CNDi`     | `i1i`   | The ith bit of `CND`.                                                                                                                                              |
 | `DYTRP`    | `i05`   | The dynamic trap bit. On if any bits of `rQ&rK` are.                                                                                                               |
 | `FALS`     | `i0D`   | Always false.                                                                                                                                                      |
 | `MEMLOCK`  | `o0E`   | Lock the memory location in `MAR` and bypass the cache until further notice.                                                                                       |
 | `MEMNF`    | `i0C`   | Is the cache busy in such a way that it is uninterruptable? (This condition cannot be caused by instructions to delete some portion of a cache, or by preloading.) |
 | `MEMRDD`   | `o08`   | Read data from memory (`MDR <= m8[MAR]`).                                                                                                                          |
-| `MEMRDI`   | `o22`   | Read instruction from memory (`MDR <= m8[MAR]`).                                                                                                                   |
+| `MEMRDI`   | `o09`   | Read instruction from memory (`MDR <= m4[MAR]`).                                                                                                                   |
 | `MEMUNLK`  | `o0F`   | Further notice.                                                                                                                                                    |
-| `MEMWR`    | `o09`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
-| `MEMWRB`   | `o24`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
-| `MEMWRT`   | `o25`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
-| `MEMWRW`   | `o26`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
-| `PTPR`     | `i08`   | Bit 13 of `w22`: Is reading from this page allowed?                                                                                                                |
-| `PTPW`     | `i09`   | Bit 14 of `w22`: Is writing to this page allowed?                                                                                                                  |
-| `PTPX`     | `i0A`   | Bit 15 of `w22`: Is executing this page allowed?                                                                                                                   |
+| `MEMWRB`   | `o25`   | Write data to memory (`m1[MAR] <= MDR`).                                                                                                                           |
+| `MEMWRO`   | `o22`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
+| `MEMWRT`   | `o23`   | Write data to memory (`m4[MAR] <= MDR`).                                                                                                                           |
+| `MEMWRW`   | `o24`   | Write data to memory (`m2[MAR] <= MDR`).                                                                                                                           |
+| `PTPR`     | `i08`   | Bit 13 of `PTW`: Is reading from this page allowed?                                                                                                                |
+| `PTPW`     | `i09`   | Bit 14 of `PTW`: Is writing to this page allowed?                                                                                                                  |
+| `PTPX`     | `i0A`   | Bit 15 of `PTW`: Is executing this page allowed?                                                                                                                   |
 | `REMNF`    | `i04`   | The floating-point remainder operation is unfinished.                                                                                                              |
 | `RKAC`     | `i0B`   | Are all the program bits of `rK` on?                                                                                                                               |
-| `rKb`      | `i1D`   | Break bit of `rK`.	                                                                                                                                                |
+| `rQb`      | `o1D`   | Break bit of `rK`.                                                                                                                                                 |
 | `rKk`      | `i1C`   | Kernel bit of `rK`.                                                                                                                                                |
 | `rKn`      | `i1B`   | Negative bit of `rK`.                                                                                                                                              |
 | `rKp`      | `i1F`   | Privilege bit of `rK`.                                                                                                                                             |
-| `rKr`      | `i18`   | Read bit of `rK`. 	                                                                                                                                                |
+| `rKr`      | `i18`   | Read bit of `rK`.                                                                                                                                                  |
 | `rKs`      | `i1E`   | Security bit of `rK`.                                                                                                                                              |
-| `rKw`      | `i19`   | Write bit of `rK`.	                                                                                                                                                |
+| `rKw`      | `i19`   | Write bit of `rK`.                                                                                                                                                 |
 | `rKx`      | `i1A`   | Execute bit of `rK`.                                                                                                                                               |
 | `rQb`      | `o05`   | Break bit of `rQ`. Set if emulated instruction is illegal even at a negative address.                                                                              |
-| `rQii`     | `o1E`   | Interval interrupt bit of `rQ`. Set to cause an interval interrupt.                                                                                                |
 | `rQk`      | `o04`   | Kernel bit of `rQ`. Set if emulated instruction is legal only at a negative address.                                                                               |
 | `rQn`      | `o03`   | Negative bit of `rQ`. Set if emulated instruction tried to refer to a negative virtual address in any way except by having the next address be negative.           |
 | `rQp`      | `o07`   | Privilege bit of `rQ`. Set if emulated instruction was in a negative virtual address.                                                                              |
@@ -166,9 +166,9 @@ The flags are as follows:
 | `rQs`      | `o06`   | Security bit of `rQ` and `rK`. Set if emulated instruction tried to run with any program bits of `rK` off from a positive virtual address.                         |
 | `rQw`      | `o01`   | Write bit of `rQ`. Set if emulated store tried to write to a page without write permission.                                                                        |
 | `rQx`      | `o02`   | Execute bit of `rQ`. Set if emulated instruction was in a page without execute permission.                                                                         |
-| `SETA`     | `o21`   | Set `rA` according to the arithmetic operation.                                                                                                                    |
-| `SETH`     | `o20`   | Set `rH` to the high half of an unsigned multiplication.                                                                                                           |
-| `SETR`     | `o1F`   | Set `rR` to the remainder of a division.                                                                                                                           |
+| `SETA`     | `o20`   | Set `rA` according to the arithmetic operation.                                                                                                                    |
+| `SETH`     | `o1F`   | Set `rH` to the high half of an unsigned multiplication.                                                                                                           |
+| `SETR`     | `o1E`   | Set `rR` to the remainder of a division.                                                                                                                           |
 | `SLP`      | `o11`   | Go to sleep. Go directly to sleep. Do not pass Go.                                                                                                                 |
 | `TCDEL`    | `o1D`   | Delete the contents of the translation caches.                                                                                                                     |
 | `TCDKK`    | `i07`   | Does the data translation cache contain the key in `TCKR`?                                                                                                         |
@@ -185,8 +185,7 @@ There should be a `PGO` to execute fetch/decode in microcode address 0,
 and microcode for MMIX opcode n should start in location 256n+1.
 
 When the execution of an emulated instruction finishes,
-it should leave nominal time taken for this instruction in `TT`,
-the result (the octabyte to store in `$X`) in `RES`,
+it should leave the result (the octabyte to store in `$X`) in `RES`
 and jump to the xstore-and-finish routine.
 If it is an instruction with no result, or with a complicated result
 that should be handled in some other way, it should instead handle its result
@@ -210,8 +209,8 @@ to complete),
 so interrupts might be ignored by accident if they stay on for fewer than
 five clock cycles, unless they are generated by microinstructions.)
 
-This leaves six registers that are entirely general-purpose,
-as well as `w7E` and `bFE`. `u26` to `u28` are almost general-purpose,
+This leaves seven registers that are entirely general-purpose,
+as well as `t76`, `w7E` and `bFE`. `u26` to `u28` are almost general-purpose,
 as the microarchitecture has no interrupts,
 and `b63`, `bFF`, `w00`, `w22`, `t77`, `u1`, `u2`, `u6`, `u7`, `u9`, and `u13`
 can be used as temporary storage,

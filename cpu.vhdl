@@ -33,10 +33,12 @@
 -- CLO Y/8 Set contents of oregister Y/8 to 0. This is encoded as 7 03 Y.
 -- CJP Y/2 Jump to contents of wregister Y/2, but skip an instruction.
 -- This is encoded as 7 04 Y.
+-- PST Pop microcode stack, don't return. This is encoded as 7 80 Y.
 -- Currently (not likely to change, but why rely on this?),
--- only the last three bits of X affect what 7 X Y does.
+-- only the last three bits of X (and the first) affect what 7 X Y does.
 -- If they're 0, it's POP, 4 it's CJP.
 -- 1 or 5 it's CLW, 2 or 6 it's CLT, 3 or 7 it's CLO.
+-- If the top bit is on, however, it's PST instead of POP.
 -- BUN X Y Jumps in same way as BIF, except if Y is off.
 -- This is encoded as 4 X (Y+80)
 --
@@ -54,8 +56,8 @@
 -- It is wired to special register SRS%32.
 -- Oregister 5 (bregs 28-2F) is the general data register.
 -- It is wired to general register GRS.
--- Oregister 6 (bregs 30-37) is the memory access register (MAR).
--- Oregister 7 (bregs 38-3F) is the memory data register (MDR).
+-- Oregister 6 (bregs 30-37) is the memory data register (MDR).
+-- Oregister 7 (bregs 38-3F) is the memory access register (MAR).
 -- Bregisters 40 to 43 are the first four nybbles of rV. (ror)
 -- Wregisters 22 and 23 (bregs 44-47) are for page tables.
 -- Put a wyde into 22, read bits 3-12 out of bits 3-12 of 23. (ror)
@@ -78,8 +80,8 @@
 -- Oregister 13 (bregs 68-6F) is the translation cache key register (TCKR).
 -- Oregister 14 (bregs 70-77) should probably be used
 -- for the instruction pointer. It has no special meaning.
--- Oregisters 15-18 (bregs 78-97) contain rO, rS, rI, rU in that order.
--- Oregister 19 (bregs 98-9F) contains L(y) - see p. 49 of MMIXware.
+-- Oregisters 15-17 (bregs 78-8F) contain rO, rS, rU in that order.
+-- Oregister 18 (bregs 90-97) contains L(y) - see p. 49 of MMIXware.
 -- Bregister FF is copied into iflags 10-17.
 -- Remaining registers have no special meaning; plenty of those.
 --
@@ -105,7 +107,7 @@
 -- Oflags 0-7 force on the corresponding program bits (rwxnkbsp) of rQ;
 -- oflag 6 also forces on the s bit of rK.
 -- Oflag 8 sets MDR = m8[MAR] (memory read). This is treated as data.
--- Oflag 9 sets m8[MAR] = MDR (memory write).
+-- Oflag 9 sets MDR = m4[MAR] (memory read). This is treated as instruction.
 -- (The high bit of MAR is ignored.)
 -- Oflag A clears the data cache block containing MAR
 -- by setting its LU time to 0.
@@ -134,13 +136,11 @@
 -- TCVR if they are not all 0. Otherwise, it deletes ITC[TCVR].
 -- Oflags 1A-1C act like 17-19, except they work with the DTC.
 -- Oflag 1D deletes the entire ITC and DTC.
--- Oflag 1E forces on the seventh-to-last bit of rQ.
--- Oflag 1F sets rR.
--- Oflag 20 sets rH.
--- Oflag 21 sets rA.
--- Oflag 22 acts like oflag 24, except it's for instruction reads.
--- Oflag 23 acts like oflag 13, except it doesn't write
--- Oflags 24-26 set MDR <= m4[MAR]/m2[MAR]/m1[MAR].
+-- Oflag 1E sets rR.
+-- Oflag 1F sets rH.
+-- Oflag 20 sets rA.
+-- Oflag 21 acts like oflag 13, except it doesn't write.
+-- Oflags 22-25 set m8[MAR]/m4[MAR]/m2[MAR]/m1[MAR] <= MDR.
 -- The remaining oflags are currently unassigned.
 -- Standard idiom for reading/writing/frobbing memory is
 -- 5 00 Y (AST Y)
@@ -169,7 +169,7 @@ architecture a1 of mmix_cpu_core is
   signal yread0, yread1, yread2, yread3 : bit_vector (0 to 63);
   signal wro, wrt, wrw, wrb, wrot, wrwb : bit_vector (0 to 255);
   signal l0, r0, l1, r1, l2, r2, setreg, anyx, doot, doow, icj : bit;
-  signal dbr, rdbr, iporp, dast, wry : bit;
+  signal dbr, rdbr, iporp, dast, wry, ttop, ipop : bit;
   signal incamt, uptrr, uptrs, uptr0 : bit_vector (0 to 15);
 begin
   fetch : muxn generic map (19, 16) port map (code, uptri, uop&instx&insty);
@@ -216,7 +216,7 @@ begin
   wuptrr : mux2 generic map (16) port map (instx(5), nstk, yread3(0 to 15),
                                            uptrr);
   wuptrs : mux2 generic map (16) port map (uop(2), instx&insty, uptrr, uptrs);
-  wuptr0 : mux2 generic map (16) port map (iporp, uptri, uptrs, uptr0);
+  wuptr0 : mux2 generic map (16) port map (ttop, uptri, uptrs, uptr0);
   couptr : adder_1 generic map (16) port map (uptr0, incamt, uptro, open);
   cofl : dmxn generic map (0, 8) port map (insty, dast, oflags);
   wry <= uop(0) and instx(5);
@@ -229,14 +229,16 @@ begin
   r2 <= (uop(1) and uop(2) and not icj) or insty(5);
   setreg <= not uop(0) or (not uop(2) and (not uop(1)
             or ((instx(6) or instx(7)) and not instx(5))));
-  icj <= uop(0) and uop(1) and uop(2) and instx(5);
-  popstk <= iporp and uop(2) and not (instx(5) or instx(6) or instx(7));
-  pshstk <= iporp and not uop(2);
+  icj <= iporp and uop(2) and instx(5);
+  ipop <= iporp and uop(2) and not (instx(5) or instx(6) or instx(7));
+  popstk <= ipop;
+  pshstk <= iporp and not uop(2);;
   iporp <= uop(0) and uop(1);
   doow <= uop(2) and (instx(7) or not uop(0));
   doot <= uop(1) and (instx(6) or not uop(0));
   hix <= (others => instx(0));
   dast <= uop(0) and (uop(1) nor anyx) and uop(2);
+  ttop <= iporp and (uop(2) nand instx(0));
 end;
 
 component mmix_cpu_core
@@ -293,120 +295,97 @@ architecture a1 of mmix_full_cpu is
   signal code : ucode;
   signal iflags : bit_vector (0 to 127);
   signal uregs : ureg;
-  signal uptrb, nstkb, uptra : bit_vector (0 to 15);
-  signal wrts, oflags : bit_vector (0 to 255);
-  signal oregs, memmdro, rm, rd, re, rh, rr, rf, rv : bit_vector (0 to 63);
-  signal push, pop, wrmdr, atcw, memerr, parerr, nomem : bit;
-  signal itco, dtco, tco : bit_vector (0 to 37);
-  signal rab, raa : bit_vector (0 to 31);
+  signal uptrb, nstk, uptra : bit_vector (0 to 15);
+  signal oregs, rI, rF, rH, rR, rD, rE, rM, rV, memout : bit_vector (0 to 63);
+  signal rAb, rAa : bit_vector (0 to 31);
+  signal wrw, oflags : bit_vector (0 to 255);
+  signal rKpb, rmerr : bit_vector (0 to 7);
+  signal psh, pop, memerr, mdrw, atcr, parerr, nomem : bit;
+  signal wtmdr, insm, ilnz, ii : bit;
+  signal tcdo, tcio, tco : bit_vector (0 to 37);
 begin
-  microcode : mmix_microcode port map (code);
-  core : mmix_cpu_core port map (code, iflags, uregs, uptrb, nstkb,
-                                 oregs, wrts, oflags, push, pop, uptra);
-  stack : mcstack generic map (stkdpth) port map (uptra, push, pop, clock,
-                                                  uptrb, nstkb);
-  mstregs: for i in 1 to 31 generate
+  core : mmix_cpu_core port map (code, iflags, ureg, uptrb, nstk,
+                                 oregs, wrw, oflags, psh, pop, uptra);
+  micro : mmix_microcode port map (code);
+  stack : mcstack generic map (stkdpth) port map (uptra, psh, pop, clock,
+                                                  uptrb, nstk);
+  rregs: for i in 1 to 31 generate
   begin
-    reglr: if i < 3 or i > 19 or i = 6 or i = 7
-             or i = 13 or i = 14 or i = 9 generate
-      signal dat : bit_vector (0 to 64);
-      signal wr : bit_vector (0 to 7);
+    isreg: if (i < 3 or i = 7 or i = 9 or i > 12)
+             and (i < 15 or i > 18) generate
     begin
-      vrglr: if i /= 7 generate
-      begin
-        dat <= oregs;
-        wr <= wrts(i*8 to i*8+7);
-      end;
-      mdr: if i = 7 generate
-      begin
-        whdr : mux2 generic map (72) port map (wrmdr, wrts(56 to 63)&oregs,
-                                               h"FF"&memmdro, wr&dat);
-      end;
-      oreg : da_reg generic map (3, 6) port map (wr, clock, dat, uregs(i));
+      regreg : da_reg generic map (3, 6) port map (wrw(i*8 to i*8+7), clock,
+                                                   oregs, uregs(i));
     end;
   end;
-  alusrs : da_reg generic map (1, 4) port map (wrts(0 to 1), clock,
-                                               oregs(0 to 15),
-                                               uregs(0)(0 to 15));
-  ptmn : da_reg generic map (1, 4) port map (wrts(68 to 69), clock,
-                                             oregs(32 to 47),
-                                             uregs(8)(32 to 47));
-  treg1 : da_reg generic map (2, 5) port map (wrts(4 to 7), clock,
+  wreg00 : da_reg generic map (1, 4) port map (wrw(0 to 1), clock,
+                                              oregs(0 to 15),
+                                              uregs(0)(0 to 15));
+  treg01 : da_reg generic map (2, 5) port map (wrw(4 to 7), clock,
                                               oregs(32 to 63),
                                               uregs(0)(32 to 63));
-  wreg22 : da_reg generic map (1, 4) port map (wrts(68 to 69), clock,
+  oreg6 : aao_reg generic map (3, 6) port map (wrw(48 to 55), mdrw, clock,
+                                               memout, oregs, uregs(6));
+  wreg22 : da_reg generic map (1, 4) port map (wrw(68 to 69), clock,
                                                oregs(32 to 47),
                                                uregs(8)(32 to 47));
-  breg60 : da_reg generic map (0, 3) port map (wrts(96), clock,
+  breg60 : da_reg generic map (0, 3) port map (wrw(96), clock,
                                                oregs(0 to 7),
                                                uregs(12)(0 to 7));
-  afu : mmix_afu generic map (fremstg) port map (uregs(1), uregs(2),
-                                                 rm, rd, re, rab,
-                                                 uregs(0)(0 to 7),
-                                                 uregs(12)(0 to 7),
-                                                 uregs(3),
-                                                 rh, rr, raa,
-                                                 iflags(0), iflags(1),
-                                                 iflags(2), iflags(4),
-                                                 iflags(3),
-                                                 uregs(12)(8 to 11));
-  mmix_spregs : sregs port map (oregs, rf, rh, lpio&oflags(0 to 7)&hpio&
-                                macherr(0)&oflags(30)&macherr(2 to 4)&nomem&
-                                parerr&macherr(7), rr, raa,
-                                uregs(0)(8 to 15), wrts(32 to 39),
-                                wrts(136 to 143), wrts(120 to 127),
-                                wrts(128 to 135), wrts(144 to 151),
-                                oflags(33), memerr, wrts(2), oflags(32),
-                                wrts(3), oflags(31), clock,
-                                uregs(4), rd, re, uregs(17), rm,
-                                uregs(15), uregs(16), uregs(18), rv,
-                                rab, uregs(0)(16 to 23), uregs(0)(24 to 31),
-                                iflags(24 to 31), iflags(5));
-  akpb : or_comb generic map (8) port map (iflags(24 to 31), iflags(11));
-  mmix_gpregs : gregs generic map (llocs)
-    port map (uregs(16), uregs(15), oregs,
-              uregs(0)(16 to 23), uregs(0)(24 to 31), uregs(9)(0 to 7),
-              wrts(40 to 47), wrts(152 to 159), clock,
-              uregs(5), uregs(19));
-  itc : vtcache port map (uregs(13), uregs(12)(26 to 63),
-                          oflags(24), oflags(25), oflags(29), clock,
-                          itco, iflags(6));
-  dtc : vtcache port map (uregs(13), uregs(12)(26 to 63),
-                          oflags(27), oflags(28), oflags(29), clock,
-                          dtco, iflags(7));
-  wtc : mux2 generic map (38) port map (oflags(26), itco, dtco, tco);
-  tcdr : da5by port map (wrts(99 to 103), oregs(24 to 63), tco, atcw, clock,
-                         uregs(12)(24 to 63));
-  b1024h : base1024 port map (uregs(9)(8 to 63), uregs(10)(0 to 15),
-                              uregs(10)(16 to 31), uregs(10)(32 to 47),
-                              uregs(10)(48 to 63), uregs(11)(0 to 15));
-  decv : rvdec port map (rv, uregs(8)(0 to 7), uregs(8)(8 to 15),
-                         uregs(8)(16 to 23), uregs(8)(24 to 31),
-                         uregs(12)(16 to 23), uregs(11)(16 to 31),
-                         uregs(11)(32 to 63));
-  decpt : pthr port map (uregs(8)(32 to 47), uregs(8)(48 to 63),
-                         iflags(8 to 10));
-  cache : memcache generic map (memto, memfr) port map (uregs(6), uregs(7),
-                                                        oflags(9), oflags(36),
-                                                        oflags(37), oflags(38),
-                                                        oflags(8),
-                                                        oflags(34), oflags(10),
-                                                        oflags(11), oflags(12),
-                                                        oflags(13), oflags(14),
-                                                        oflags(15), oflags(16)
-                                                        oflags(18), oflags(19),
-                                                        oflags(20), oflags(21),
-                                                        oflags(22), oflags(35),
-                                                        clock, memmdro, rf,
-                                                        parerr, nomem,
-                                                        iflags(12), wrmdr,
-                                                        frmem, tomem);
+  wtco : mux2 generic map (38) port map (oflags(23), tcdo, tcio, tco);
+  tcvr : da5by port map (wrw(99 to 103), oregs(24 to 63), b"00"&tco,
+                         atcr, clock, uregs(12)(24 to 63));
+  sp_regs : sregs port map (oregs, rF, rH, lpio&oflags(0 to 7)&hpio&rmerr,
+                            rR, rAa, uregs(0)(8 to 15),
+                            wrw(120 to 127), wrw(128 to 135), wrw(136 to 143),
+                            oflags(32), memerr, wrw(2), oflags(31), wrw(3),
+                            oflags(30), clock, uregs(4), rD, rE, rI, rM,
+                            uregs(15), uregs(16), uregs(17), rV, rAb,
+                            uregs(0)(16 to 23), uregs(0)(24 to 31), rKpb,
+                            iflags(11));
+  akpo : and_comb generic map (8) port map (rKpb, iflags(11));
+  gp_regs : gregs generic map(llocs) port map (uregs(16), uregs(15), oregs,
+                                               uregs(0)(16 to 23),
+                                               uregs(0)(24 to 31),
+                                               uregs(9)(0 to 7),
+                                               wrw(40 to 47), wrw(144 to 151),
+                                               clock, uregs(5), uregs(18));
+  itc : vtcache port map (uregs(13), uregs(12)(26 to 63), oflags(24),
+                          oflags(25), oflags(29), clock, tcio, iflags(6));
+  dtc : vtcache port map (uregs(13), uregs(12)(26 to 63), oflags(27),
+                          oflags(28), oflags(29), clock, tcdo, iflags(7));
+  alu : mmix_afu port map (uregs(1), uregs(2), rM, rD, rE, rAb,
+                           uregs(0)(0 to 7), uregs(12)(0 to 7),
+                           uregs(3), rH, rR, rAa, iflags(0), iflags(1),
+                           iflags(2), iflags(4), iflags(3),
+                           uregs(12)(8 to 11));
+  ivs : or_comb generic map (61) port map (rI(0 to 60), insm);
+  inz : or_comb generic map (3) port map (rI(61 to 63), ilnz);
+  memint : memcache generic map (memto, memfr)
+    port map (uregs(7), uregs(6), oflags(34), oflags(35), oflags(36),
+              oflags(37), oflags(8), oflags(9), oflags(10), oflags(11),
+              oflags(12), oflags(13), oflags(14), oflags(15), oflags(16),
+              oflags(18), oflags(19), oflags(20), oflags(21), oflags(22),
+              oflags(33), clock, memout, rF, parerr, nomem, iflags(12),
+              frmem, tomem);
+  pt : pthr port map (uregs(8)(32 to 47), uregs(8)(48 to 63), iflags(8 to 10));
+  b1024 : base1024 port map (uregs(9)(8 to 63), uregs(10)(0 to 15),
+                             uregs(10)(16 to 31), uregs(10)(32 to 47),
+                             uregs(10)(48 to 63), uregs(11)(0 to 15));
+  vdc : rvdec port map (rV, uregs(8)(0 to 7), uregs(8)(8 to 15),
+                        uregs(8)(16 to 23), uregs(8)(24 to 31),
+                        uregs(12)(16 to 23), uregs(10)(16 to 31),
+                        uregs(10)(32 to 63));
+  sleep <= oflags(17);
+  ii <= ilnz and not insm;
   iflags(13 to 15) <= o"0";
   iflags(16 to 23) <= uregs(31)(56 to 63);
-  iflags(24 to 127) <= (others => '0');
-  sleep <= oflags(17);
+  iflags(24 to 31) <= rKpb;
+  iflags(32 to 127) <= (others => '0');
+  atcr <= oflags(23) or oflags(26);
   uregs(12)(12 to 15) <= h"0";
-  atcw <= oflags(25) or oflags(26);
+  memerr <= parerr or nomem;
+  rmerr <= macherr(0)&ii&macherr(2 to 4)&nomem&parerr&macherr(7);
 end;
 
 component mmix_full_cpu

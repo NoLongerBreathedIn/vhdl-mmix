@@ -51,10 +51,10 @@ end;
 entity memcache is
   generic (memto, memfr : integer);
   port (mar, mdri : in bit_vector (0 to 63);
-        wrt, rdd, rdi, cdbk, pldd, pldi, delbt, lock, unlock : in bit;
-        clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
+        wro, wrt, wrw, wrb, rdd, rdi, cdbk, pldd, pldi, delbt, lock : in bit;
+        unlock, clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
         mdro, floc : out bit_vector (0 to 63);
-        parerr, nomem, busy, wtmdr : out bit,
+        parerr, nomem, busy : out bit,
         frmem : in bit_vector (0 to memto-1);
         tomem : out bit_vector (0 to memfr-1));
 end;
@@ -63,7 +63,7 @@ component memcache
   generic (memto, memfr : integer);
   port (mar, mdri : in bit_vector (0 to 63);
         wro, wrt, wrw, wrb, rdd, rdi, cdbk, pldd, pldi, delbt, lock : in bit;
-        nlock, clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
+        unlock, clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
         mdro, floc : out bit_vector (0 to 63);
         parerr, nomem, busy : out bit,
         frmem : in bit_vector (0 to memto-1);

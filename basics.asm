@@ -1,6 +1,9 @@
-dytrap:
-	BUN 1 DYTRP
-	POP
+	;; Expects ALUY to contain any extra bits to or into rX.
+gen_trap:
+	MVO ALUZ rX
+	SET ALUS OR
+	SET SRS rXX
+	MVO SDR ALUX
 	SET SRS rYY
 	MVO SDR rY
 	SET SRS rZZ
@@ -12,6 +15,10 @@ dytrap:
 	MVO SDR GDR
 	SET SRS rJ
 	MVO GDR SDR
+	POP
+dytrap:
+	BUN 1 DYTRP
+	POP
 	SET SRS rQ
 	MVO ALUY SDR
 	SET SRS rK
@@ -22,13 +29,10 @@ dytrap:
 	CLO ALUZ
 	SET ALUZ.3 0xFF
 	MVO ALUY ALUX
-	SET ALUS OR
-	MVO ALUZ rX
-	SET SRS rXX
-	MVO SDR ALUX
+	PGO gen_trap
 	SET SRS rTT
 	MVO IP SDR
-	PGO fde
+	PGO fetch
 cause_r:
 	BIF 1 rKr
 	POP
@@ -68,7 +72,7 @@ cause_p:
 	AST rQp
 	PGO dytrap
 	
-	;; Input in u20 and ALUY (assumed equal). Output in TCKR.
+	;; Input in u19 and ALUY (assumed equal). Output in TCKR.
 determine_pte_key:
 	MVW PTW Vnf
 	BIF 1 PTPW
@@ -81,7 +85,7 @@ determine_pte_key:
 	MVO ALUY ALUX
 	SET ALUS SL
 	MVO ALUY ALUX
-	MVW PTW u20.l
+	MVW PTW u19.l
 	MVW ALUZ.l PTN
 	SET ALUS OR
 	MVO TCKR ALUX
@@ -93,11 +97,11 @@ lookup_check_pt:
 	SET ALUZ.7 13
 	SET ALUS SL
 	MVO ALUY ALUX
-	MVW ALUZ.l u21.l
+	MVW ALUZ.l u20.l
 	SET ALUS OR
 	MVO MAR ALUX
 	AST MEMRDD
-	MVW ALUZ.l u22.l
+	MVW ALUZ.l u21.l
 	SET ALUS SUB
 	CLO ALUY
 	BIF -1 MEMNF
@@ -107,9 +111,9 @@ lookup_check_pt:
 	PGO cause_p
 	MVO ALUY MDR
 	POP
-	;; Put 10 bits in u21.l (wyde). Put upper bits shifted right in ALUX.
+	;; Put 10 bits in u20.l (wyde). Put upper bits shifted right in ALUX.
 	;; Reads PTP, checks n is correct, puts it (shifted right) in ALUX.
-	;; Expects n in u22.l (wyde).
+	;; Expects n in u21.l (wyde).
 lookup_check_ptp:
 	PGO lookup_check_pt
 	CLO ALUZ
@@ -119,9 +123,9 @@ lookup_check_ptp:
 	SET ALUS SRU
 	POP
 	
-	;; Input in u20. Output in TCVR.
+	;; Input in u19. Output in TCVR.
 determine_pte:
-	MVO ALUY u20
+	MVO ALUY u19
 	CLO ALUZ
 	SET ALUZ.0 0xE0
 	SET ALUS ANDN
@@ -130,7 +134,7 @@ determine_pte:
 	MVB ALUZ.7 Vs
 	SET ALUS SR
 	MVO B210W ALUX
-	MVB CND u20.0
+	MVB CND u19.0
 	CLO ALUY
 	BIF 7 CND1
 	BIF 3 CND2
@@ -156,9 +160,9 @@ determine_pte:
 	MVB ALUZ.7 GRS
 	MVT ALUY.l Vr
 	SET ALUS ADD
-	MVO u21 ALUX
+	MVO u20 ALUX
 	MVW PTW Vnf
-	MVW u22.l PTN
+	MVW u21.l PTN
 	MVB CND ALUY.7
 	MVW ALUY.l B210A
 	BIF 8 ALUZR 		; to the MVW ALUY.l B210B
@@ -167,17 +171,17 @@ determine_pte:
 	BIF 2 CND6
 	BIF 1 CND7
 	PGO cause_p
-	MVO ALUY u21
+	MVO ALUY u20
 	SET ALUZ.7 4
-	BUN 37 FALS		; to the MVW u21.l B210A
+	BUN 37 FALS		; to the MVW u20.l B210A
 	MVW ALUY.l B210B
 	BIF 6 ALUZR		; to the MVW ALUY.l B210C
 	BIF 2 CND4
 	BIF 1 CND5
 	PGO cause_p
-	MVO ALUY u21
+	MVO ALUY u20
 	SET ALUZ.7 3
-	BUN 31 FALS		; to the MVW u21.l B210B
+	BUN 31 FALS		; to the MVW u20.l B210B
 	MVW ALUY.l B210C
 	BIF 8 ALUZR     	; to the MVW ALUY.l B210D
 	BIF 4 CND4
@@ -185,18 +189,18 @@ determine_pte:
 	BUN 1 CND6
 	BIF 1 CND7
 	PGO cause_p
-	MVO ALUY u21
+	MVO ALUY u20
 	SET ALUZ.7 2
-	BUN 23 FALS 		; to the MVW u21.l B210C
+	BUN 23 FALS 		; to the MVW u20.l B210C
 	MVW ALUY.l B210D
 	BIF 7 ALUZR		; to the MVW ALUY.l B210E
 	BIF 3 CND4
 	BIF 2 CND5
 	BIF 1 CND6
 	PGO cause_p
-	MVO ALUY u21
+	MVO ALUY u20
 	SET ALUZ.7 1
-	BUN 16 FALS		; to the MVW u21.l B210D
+	BUN 16 FALS		; to the MVW u20.l B210D
 	MVW ALUY.l B210E
 	BIF 5 ALUZR
 	BIF 4 CND4
@@ -204,18 +208,18 @@ determine_pte:
 	BIF 2 CND6
 	BIF 1 CND7
 	PGO cause_p
-	MVO ALUY u21
+	MVO ALUY u20
 	SET ALUZ.7 0
-	BUN 8 FALS 		; to the MVW u21.l B210E
-	MVW u21.l B210A
+	BUN 8 FALS 		; to the MVW u20.l B210E
+	MVW u20.l B210A
 	PGO lookup_check_ptp
-	MVW u21.l B210B
+	MVW u20.l B210B
 	PGO lookup_check_ptp
-	MVW u21.l B210C
+	MVW u20.l B210C
 	PGO lookup_check_ptp
-	MVW u21.l B210D
+	MVW u20.l B210D
 	PGO lookup_check_ptp
-	MVW u21.l B210E
+	MVW u20.l B210E
 	PGO lookup_check_pt
 	MVB ALUY.0 ALUY.7
 	CLO ALUZ
@@ -236,7 +240,7 @@ determine_pte:
 	SET ALUS OR
 	MVO TCVR ALUY
 	POP
-	;; Input in u20 and ALUY (assumed equal). Output in TCVR.
+	;; Input in u19 and ALUY (assumed equal). Output in TCVR.
 determine_pte_x:
 	PGO determine_pte_key
 	BUN 2 TCIKK
@@ -245,7 +249,7 @@ determine_pte_x:
 	MVW PTW Vnf
 	BIF 3 PTPX
 	SET rX.0 3
-	MVO rY u20
+	MVO rY u19
 	PGO dytrap
 	PGO determine_pte
 	AST TCIW
@@ -258,7 +262,7 @@ determine_pte_rw:
 	MVW PTW Vnf
 	BIF 3 PTPX
 	SET rX.0 3
-	MVO rY u20
+	MVO rY u19
 	PGO dytrap
 	PGO determine_pte
 	AST TCDW

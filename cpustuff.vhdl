@@ -143,17 +143,44 @@ component fonreg8
         o : out bit_vector (0 to 63));
 end;
 
--- ro: rV 8 rG 1 rE 8 rM 8 rD 8 v2(rQ&rK) 1
--- rw: rL 1 rO 8 rS 8 rI 8 rU 8 (all bytewise) rA 4 (tetwise)
+entity ad_reg is
+  port (a : in bit_vector (0 to 7);
+        c : in bit;
+        d : in bit_vector (0 to 63);
+        o : out bit_vector (0 to 63));
+end;
+
+architecture a1 of ad_reg is
+  signal any_a, wds, nnz : bit;
+  signal repl : bit_vector (0 to 7);
+  signal wrt, io, do : bit_vector (0 to 63);
+begin
+  caa : or_comb generic map (8) port map (a, any_a);
+  cnz : or_comb generic map (64) port map (io, nnz);
+  whc : mux2 generic map (72) port map (wds, h"FF"&do, a&d, repl&wrt);
+  sb1 : adder generic map (64) port map (64sb"1", io, do, open);
+  rrg : da_reg generic map (3, 6) port map (repl, c, wrt, io);
+  wds <= any_a or not nnz;
+end;
+
+component ad_reg
+  port (a : in bit_vector (0 to 7);
+        c : in bit;
+        d : in bit_vector (0 to 63);
+        o : out bit_vector (0 to 63));
+end;
+
+-- ro: rV 8 rG 1 rE 8 rI 8 rM 8 rD 8 v2(rQ&rK) 1
+-- rw: rL 1 rO 8 rS 8 rU 8 (all bytewise) rA 4 (tetwise)
 -- wo: rQ 8 (bitwise, only on) rR 8 (octwise) rH 8 (octwise) rF 8 (octwise) 
--- other outputs: all(rK progbits), any(rQ&rK)
+-- other outputs: rK progbits, any(rQ&rK)
 -- register order: B D E H J M R BB C N O S I T TT K
 -- Q U V G L A F P W X Y Z WW XX YY ZZ
 
 entity sregs is
   port (sdri, rfi, rhi, rqi, rri : in bit_vector (0 to 63);
         rai : in bit_vector (0 to 31);
-        srs, sdrw, riw, row, rsw, ruw : in bit_vector (0 to 7);
+        srs, sdrw, row, rsw, ruw : in bit_vector (0 to 7);
         raw, rfw, rgw, rhw, rlw, rrw, clock : in bit;
         sdro, rdo, reo, rio, rmo : out bit_vector (0 to 63);
         roo, rso, ruo, rvo : out bit_vector (0 to 63);
@@ -166,8 +193,7 @@ architecture a1 of sregs is
   type regs is array (0 to 31) of bit_vector (0 to 63);
   signal post : regs;
   signal activate, wbytes, wregs : bit_vector (0 to 255);
-  signal aiuos : bit_vector (0 to 3);
-  signal iuosw : bit_vector (0 to 31);
+  signal uosw : bit_vector (8 to 31);
   signal glw : bit_vector (0 to 1);
   signal qak : bit_vector (0 to 63);
 begin
@@ -177,16 +203,20 @@ begin
   end;
   rregs: for i in 0 to 31 generate
   begin
-    reg: if i /= 3 and i /= 6 and i /= 9
+    reg: if i /= 3 and i /= 6 and i /= 9 and i /= 12
            and i /= 15 and i /= 16 and (i < 19 or i > 22) generate
       signal act : bit_vector (0 to 7);
     begin
-      iuos: if (i >= 10 and i <= 12) or i = 17 generate
+      uos: if i = 10 or i = 11 or i = 17 generate
+        signal any : bit;
       begin
-        wact : mux2 generic map (aiuos(i mod 4), activate(i*8 to i*8+7),
-                                 iuosw((i mod 4)*8 to (i mod 4)*8+7), act);
+        sps : or_comb generic map (8)
+          port map (uosw((i mod 4)*8 to (i mod 4)*8+7), any);
+        wact : mux2 generic map (8)
+          port map (any, activate(i*8 to i*8+7),
+                    uosw((i mod 4)*8 to (i mod 4)*8+7), act);
       end;
-      vreg: if (i < 10 or i > 12) and i /= 17 generate
+      vreg: if i /= 10 and i /= 11 and i /= 17 generate
       begin
         act <= activate(i*8 to i*8+7);
       end;
@@ -214,6 +244,7 @@ begin
                                             rfi, sdri, post(22));
   rh : aao_reg generic map (3, 6) port map (activate(24 to 31), rhw, clock,
                                             rhi, sdri, post(3));
+  ri : ad_reg port map (activate(96 to 103), clock, post(12));,
   rk : fonreg8 port map (activate(120 to 127), clock, 30b"0"&rqi(31)&33b"0",
                          sdri, post(15));
   rq : fonreg8 port map (activate(128 to 135), clock, rqi, sdri, post(16));
@@ -224,11 +255,12 @@ begin
   whsr : muxn generic map (64, 5) port map (post, srso(3 to 7), sdro);
   nqk : and_gate generic map (64) port map (post(15), post(16), qak);
   neqk : or_comb generic map (64) port map (qak, qka);
+  nehi : or_comb generic map (61) port map
   post(21)(0 to 31) <= (others => '0'); -- rA
   post(9) <= h"010100005A1EEBF7"; -- rN
   wbytes <= sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&
             sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw&sdrw;
-  iuosw <= riw&ruw&row&rsw;
+  uosw <= ruw&row&rsw;
   glw <= rgw&rlw;
   kpb <= post(15)(24 to 31);
   rao <= post(21)(32 to 63);
@@ -247,7 +279,7 @@ end;
 component sregs
   port (sdri, rfi, rhi, rqi, rri : in bit_vector (0 to 63);
         rai : in bit_vector (0 to 31);
-        srs, sdrw, riw, row, rsw, ruw : in bit_vector (0 to 7);
+        srs, sdrw, row, rsw, ruw : in bit_vector (0 to 7);
         raw, rfw, rgw, rhw, rlw, rrw, clock : in bit;
         sdro, rdo, reo, rio, rmo : out bit_vector (0 to 63);
         roo, rso, ruo, rvo : out bit_vector (0 to 63);
@@ -264,23 +296,20 @@ entity mcstack is
 end;
 
 architecture a1 of mcstack is
-  type sarr is array (0 to maxlen+1) of bit_vector (0 to 15);
+  type sarr is array (0 to maxlen) of bit_vector (0 to 15);
   signal post : sarr;
   signal porp : bit;
 begin
-  regs : for i in 1 to maxlen generate
+  regs : for i in 1 to maxlen-1 generate
     signal data : bit_vector (0 to 15);
   begin
     mx : mux2 generic map (16) port map (pop, post(i-1), post(i+1), data);
-    nz: if i > 1 generate
-    begin
-      reg : da_reg generic map (0, 4) port map (porp, clock, data, post(i));
-    end;
+    reg : da_reg generic map (0, 4) port map (porp, clock, data, post(i));
   end;
-  topo <= post(1);
-  seco <= post(2);
-  post(maxlen+1) <= 16b"0";
-  post(0) <= topi;
+  tstk : da_reg generic map (0, 4) port map ('1', clock, topi, post(0));
+  topo <= post(0);
+  seco <= post(1);
+  post(maxlen) <= 16b"0";
   porp <= push or pop;
 end;
 
