@@ -20,7 +20,10 @@ end;
 
 -- memto: how many bits do we send to the memory?
 -- memfr: how many bits does the memory send us?
--- wrt: write
+-- wro: write octa
+-- wrt: write tetra
+-- wrw: write wyde
+-- wrb: write byte
 -- rdd: read data
 -- rdi: read instruction
 -- cdbk: clear data cache block containing MAR (i.e., set it up to be
@@ -59,8 +62,8 @@ end;
 component memcache
   generic (memto, memfr : integer);
   port (mar, mdri : in bit_vector (0 to 63);
-        wrt, rdd, rdi, cdbk, pldd, pldi, delbt, lock, unlock : in bit;
-        clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
+        wro, wrt, wrw, wrb, rdd, rdi, cdbk, pldd, pldi, delbt, lock : in bit;
+        nlock, clnd, deld, clnbt, delba, clri, deli, clrbt, clock : in bit;
         mdro, floc : out bit_vector (0 to 63);
         parerr, nomem, busy : out bit,
         frmem : in bit_vector (0 to memto-1);

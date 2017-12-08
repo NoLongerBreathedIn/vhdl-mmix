@@ -138,12 +138,13 @@
 -- Oflag 1F sets rR.
 -- Oflag 20 sets rH.
 -- Oflag 21 sets rA.
--- Oflag 22 acts like oflag 8, except it's for instruction reads.
--- Oflag 23 acts like oflag 13, except it doesn't write.
+-- Oflag 22 acts like oflag 24, except it's for instruction reads.
+-- Oflag 23 acts like oflag 13, except it doesn't write
+-- Oflags 24-26 set MDR <= m4[MAR]/m2[MAR]/m1[MAR].
 -- The remaining oflags are currently unassigned.
 -- Standard idiom for reading/writing/frobbing memory is
--- 5 FF Y (AST Y)
--- 5 FE 0C (BIF -1 C)
+-- 5 00 Y (AST Y)
+-- 5 FF 0C (BIF -1 C)
 -- where the second instruction may be omitted if Y is A-C, 12, 15, 16, or 23,
 -- as those never cause busyness.
 
@@ -386,7 +387,9 @@ begin
   decpt : pthr port map (uregs(8)(32 to 47), uregs(8)(48 to 63),
                          iflags(8 to 10));
   cache : memcache generic map (memto, memfr) port map (uregs(6), uregs(7),
-                                                        oflags(9), oflags(8),
+                                                        oflags(9), oflags(36),
+                                                        oflags(37), oflags(38),
+                                                        oflags(8),
                                                         oflags(34), oflags(10),
                                                         oflags(11), oflags(12),
                                                         oflags(13), oflags(14),

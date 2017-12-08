@@ -74,7 +74,7 @@ There are also plenty of special registers
 | `MAR`   | `u6`    | Memory access register.                                                                                                                                                                    |               |
 | `MDR`   | `u7`    | Memory data register.                                                                                                                                                                      |               |
 | `prQ`   | `u30`   | The value of `rQ` when it was last read.                                                                                                                                                   |               |
-| `PTN`   | `w23`   | Bits 3-12 of `PTDW`, in positions `3-12` (other positions are blank).                                                                                                                      |               |
+| `PTN`   | `w23`   | Bits 3-12 of `PTW`, in positions `3-12` (other positions are blank).                                                                                                                       |               |
 | `PTW`   | `w22`   | Page table handler. Bits 13-15 are `PTPR`, `PTPW`, and `PTPX`.                                                                                                                             |               |
 | `RES`   | `u29`   | Result of emulated instruction, for storing in `$X`.                                                                                                                                       |               |
 | `rG`    | `b02`   | MMIX's `rG`.                                                                                                                                                                               |               |
@@ -89,7 +89,7 @@ There are also plenty of special registers
 | `SDR`   | `u4`    | Hardwired to special register `SRS%32`.                                                                                                                                                    |               |
 | `SRS`   | `b01`   | Special register selector.                                                                                                                                                                 |               |
 | `TCKR`  | `u13`   | Holds the translation cache key.                                                                                                                                                           |               |
-| `TCVR`  | `u12`   | Holds the translation cache value. Note that the high byte of this is `ALUEF`, so be careful!                                                                                              |               |
+| `TCVR`  | `u12`   | Holds the translation cache value. Note that the high byte of this is `ALUEF` (and the next two are ALUEP and Vs), so be careful!                                                          |               |
 | `TT`    | `t76`   | Should hold the nominal time taken for an instruction.                                                                                                                                     |               |
 | `Um`    | `b91`   | The MMIX usage mask, the second byte of `rU`.                                                                                                                                              |               |
 | `Up`    | `b90`   | The MMIX usage pattern, the first byte of `rU`.                                                                                                                                            |               |
@@ -104,6 +104,11 @@ There are also plenty of special registers
 Attempts to write a read-only register simply fail.
 Attempts to write read-only and read-write registers simultaneously
 succeed at writing read-write registers.
+
+Following up a multi-byte register with `.n`
+refers to the `n`th subregister of the proper width thereof.
+`.h` and `.l` refer to the first and last such subregisters,
+while `.mh` and `.ml` refer to the second and third of exactly four.
 
 MMIX special-register abbreviations and opcode abbreviations are treated as
 their MMIX numerical equivalents in the `V` field of `SET`.
@@ -136,6 +141,9 @@ The flags are as follows:
 | `MEMRDI`   | `o22`   | Read instruction from memory (`MDR <= m8[MAR]`).                                                                                                                   |
 | `MEMUNLK`  | `o0F`   | Further notice.                                                                                                                                                    |
 | `MEMWR`    | `o09`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
+| `MEMWRB`   | `o24`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
+| `MEMWRT`   | `o25`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
+| `MEMWRW`   | `o26`   | Write data to memory (`m8[MAR] <= MDR`).                                                                                                                           |
 | `PTPR`     | `i08`   | Bit 13 of `w22`: Is reading from this page allowed?                                                                                                                |
 | `PTPW`     | `i09`   | Bit 14 of `w22`: Is writing to this page allowed?                                                                                                                  |
 | `PTPX`     | `i0A`   | Bit 15 of `w22`: Is executing this page allowed?                                                                                                                   |
@@ -179,7 +187,7 @@ and microcode for MMIX opcode n should start in location 256n+1.
 When the execution of an emulated instruction finishes,
 it should leave nominal time taken for this instruction in `TT`,
 the result (the octabyte to store in `$X`) in `RES`,
-and jump to the memstore-and-finish or the xstore-and-finish routine.
+and jump to the xstore-and-finish routine.
 If it is an instruction with no result, or with a complicated result
 that should be handled in some other way, it should instead handle its result
 and jump to the finish-execution routine.
@@ -188,7 +196,7 @@ The address of the next instruction should be left in `u14`.
 when execution starts after fetch/decode.)
 There is (or will be) a 'check-for-trips-and-traps' routine,
 and when calling it, store sensible values for MMIX's `rX`, `rY`, and `rZ` in
-`u26`-`u28`.
+`u26`-`u28`. `rW` will be read from `IP`.
 It is permissible to require that `u26` starts out at 0 when executing
 an instruction normally.
 
@@ -205,7 +213,7 @@ five clock cycles, unless they are generated by microinstructions.)
 This leaves six registers that are entirely general-purpose,
 as well as `w7E` and `bFE`. `u26` to `u28` are almost general-purpose,
 as the microarchitecture has no interrupts,
-and `b63`, `bFF`, `w00`, `w22`, `t31`, `u1`, `u2`, `u6`, `u7`, `u9`, and `u13`
+and `b63`, `bFF`, `w00`, `w22`, `t77`, `u1`, `u2`, `u6`, `u7`, `u9`, and `u13`
 can be used as temporary storage,
 as long as they are reset to proper values before their effects are used.
 `t01` should be treated as inviolate
