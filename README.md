@@ -119,9 +119,9 @@ The flags are as follows:
 | Name       | Synonym | Usage                                                                                                                                                              |
 |------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `ALUER`    | `i03`   | Any errors in the ALU?                                                                                                                                             |
-| `ALUEV`    | `i00`   | Is `ALUY` even?                                                                                                                                                    |
 | `ALUN`     | `i02`   | Is `ALUY` negative?                                                                                                                                                |
-| `ALUZR`    | `i01`   | Is `ALUY` zero?                                                                                                                                                    |
+| `ALUNZ`    | `i01`   | Is `ALUY` nonzero?                                                                                                                                                 |
+| `ALUOD`    | `i00`   | Is `ALUY` odd?                                                                                                                                                     |
 | `CACCDBK`  | `o0A`   | The data-cache block containing `MAR` should be the next to be replaced.                                                                                           |
 | `CACCLNBT` | `o13`   | Data-cache blocks containing any addresses between `MDR` and `MAR` should be written to core if dirty.                                                             |
 | `CACCLND`  | `o10`   | Write all dirty blocks in the data cache to core.                                                                                                                  |

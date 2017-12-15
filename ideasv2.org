@@ -1,21 +1,22 @@
 * Instruction format
-Six bytes: OP, DEL, AOP, X, Y, Z.
+Six bytes: OP, AOP, X, Y, Z, DEL.
 ** OP format
 Bit 0 is 0 for ALU op and 1 for branches and special commands.
 *** If ALU op
 Bit 1 is hold bit: should next instruction take (for first cycle)
 held values of AOP, y, z? (This is to deal with issues of bit-flicker.)
 Bits 23 are X-style.
-0: store special output (high-half or remainder)
+0: store to uX
+1: store to MMIX $X
+2: store to MMIX r(X)
+3: store special output (high-half or remainder)
 to MMIX r(X)
-1: store to uX
-2: store to MMIX $X
-3: store to MMIX r(X)
-Bits 45 and 67 are Y-style and Z-style. The same conventions will apply. For Y:
-0: direct (y = Y)
-1: microcode (y = uY)
-2: MMIX general (y = $Y)
-3: MMIX special (y = r(Y))
+
+Bits 45 and 67 are Y-style and Z-style. Identical conventions apply. For Y:
+0: microcode (y = uY)
+1: MMIX general (y = $Y)
+2: MMIX special (y = r(Y))
+3: direct (y = Y)
 *** Otherwise
 Bit 1 is:
 0: control flow
@@ -44,25 +45,25 @@ Bit 3 is ignored.
 Bits 4-7 are decoded by the following table:
 | 4-7 | Cache | Command | Applied to |
 |-----+-------+---------+------------|
-|   0 | DM    | WRT     | BA         |
-|   1 | DM    | WRT     | A          |
+|   0 | DM    | WRD     | BA         |
+|   1 | DM    | WRD     | EC         |
 |   2 | DM    | WDL     | BA         |
 |   3 | DM    | WDL     | BO         |
 |   4 | DM    | DEL     | BA         |
-|   5 | DM    | DEL     | A          |
+|   5 | DM    | DEL     | EC         |
 |   6 | IM    | DEL     | BA         |
-|   7 | IM    | DEL     | A          |
+|   7 | IM    | DEL     | EC         |
 |   8 | DM    | PLD     | BA         |
-|   9 | DM    | FGT     | O          |
-|   A | DM    | LCK     | O          |
-|   B | DM    | ULK     | O          |
+|   9 | DM    | FGT     | SB         |
+|   A | DM    | LCK     | SB         |
+|   B | DM    | ULK     | SB         |
 |   C | IM    | PLD     | BA         |
-|   D | BT    | DEL     | A          |
-|   E | DT    | STB     | O          |
-|   F | IT    | STB     | O          |
-WRT: write dirty to core
+|   D | BT    | DEL     | EC         |
+|   E | DT    | STB     | SB         |
+|   F | IT    | STB     | SB         |
+WRD: write dirty to core
 DEL: delete
-WDL: write, then delete
+WDL: write dirty, then delete
 PLD: preload
 FGT: forget (don't delete just yet).
 LCK: lock
@@ -77,17 +78,142 @@ BT: both translation
 
 BA: containing anything between uY and uZ inclusive
 BO: contained between uY and uZ inclusive
-A: anything at all
-O: containing uZ
+EC: anything at all
+SB: containing uZ
 
 **** Control flow
-need to fit in branch, unconditional jump, push, pop,
-set errors in u255, computed push (to uY * 256)
-why branch? ready/contains, any on Y, negate.
+Bit 2 is:
+0: conditional branch
+1: other
+***** Conditional branch
+Mght skip Y instructions (noop if Y=0)
+
+Bit 3 is:
+0: branch forward
+1: branch backward
+
+Bit 4 is:
+0: branch if
+1: branch unless
+
+Bit 5 is:
+0: cache test
+1: test uZ
+****** Cache test
+Bits 6 and 7:
+0 for instruction memory ready
+1 for data memory ready
+2 for instruction translation contains (key is uZ)
+3 for data translation contains (key is uZ)
+****** test uZ
+Bits 6 and 7:
+0 for uZ = 0
+1 for uZ > 0
+2 for uZ odd
+3 for uZ < 0
+***** other
+Bit 3 is:
+0: pst/seterr/jump
+1: pop/push
+****** pst/seterr/jump
+Bits 4 and 5 are:
+0: Jump to Y * 256 + Z + 1
+1: Jump to uY * 256 + uZ % 256 + 1
+2: Pop stack, stay here
+3: Set uX to: location to jump to if dynamic trip (byte 0);
+1 or 0 according to whether there are any errors (byte 1);
+new value of rA (bytes 4-7). Force errors from last byte of uY.
+This is the only non-ALU instruction that actually involves the ALU.
+****** pop/push
+Bits 4 and 5 are:
+0: Push location, jump to Y * 256 + Z + 1
+1: Push location, jump to uY * 256 + uZ % 256 + 1
+2: Pop stack, increment top.
 ** DEL format
 Gray-coded. Decrement once a cycle; when 0, go to next instruction.
 On non-ALU ops, this is ignored.
 ** AOP format
 MMIX instruction. FCMP-SRUI, OR-MXORI,
 also LDSF to lengthen floats and STSF to shorten doubles.
-Again, might do other things if not ALU op.
+Also allowable: CSN-ZSEVI; the CSs might not set.
+Finally, ALU TRAP N X Y * acts like ALU OR N X Y 0;
+this is to easily allow prevention of errors and make all-0 a no-op.
+* Special registers
+u255 is l[y]
+u0 is always 0.
+u254 is reserved for value of rQ when last read.
+* How to write instructions:
+aop is a MMIX op, del is a number.
+You may omit arbitrarily many of the trailing ones;
+they are treated as 0, TRAP, or u0.
+del appears after comma.
+** ALU opcodes
+ALU aop x y z, del: OP is 00 XS YS ZS
+where x can be uX (XS = 0), $X (XS = 1), rX (XS = 2), or sX (XS = 3).
+y can be uY (YS = 0), $Y (YS = 1), rY (YS = 2), or Y (YS = 3);
+similarly for Z.
+ALH aop x y z, del: Same, except OP is 01 XS YS ZS.
+** Conditional branch
+BIF ty amt key del: OP is 100 D TYPE, Y is amt % 256, D is 1 if amt < 0,
+| TYPE | ty  |
+|------+-----|
+|    0 | ICR |
+|    1 | DCR |
+|    2 | ITK |
+|    3 | DTK |
+|    4 | ZRO |
+|    5 | POS |
+|    6 | ODD |
+|    7 | NEG |
+|    8 | ICB |
+|    9 | DCB |
+|    A | ITU |
+|    B | DTU |
+|    C | NZR |
+|    D | NPS |
+|    E | EVN |
+|    F | NNG |
+** Cache commands
+RED cac sz val key: OP is 1100 CC SZ; X is val; Z is key.
+This sets up a future write to uX if cac is IM or DM;
+only one pending write at a time.
+WRT cac sz val key: OP is 1101 CC SZ; Y is val; Z is key.
+cac can be IM, DM, IT, or DT (CC = 0/1/2/3).
+CMS cac comm reg st nd: OP is 1110 STUF; Y is st; Z is nd.
+cac can be IM, DM, IT, DT, or BT (both translation);
+comm can be WRD (write dirty), DEL (delete), WDL (write dirty, then delete),
+PLD (preload), FGT (forget), LCK (lock), ULK (unlock),
+or STB (store last three bits of key to value, or delete if they are 0);
+reg can be BA (overlapping region between st and nd),
+BO (contained in that region), EC (entire cache),
+or SB (just the block containing nd).
+Only legal combinations are:
+| caccomreg | STUF |
+|-----------+------|
+| BT DEL EC | 1101 |
+| DM DEL BA | 0100 |
+| DM DEL EC | 0101 |
+| DM FGT SB | 1001 |
+| DM LCK SB | 1010 |
+| DM PLD BA | 1000 |
+| DM ULK SB | 1011 |
+| DM WDL BA | 0010 |
+| DM WDL BO | 0011 |
+| DM WRD BA | 0000 |
+| DM WRD EC | 0001 |
+| DT STB SB | 1110 |
+| IM DEL BA | 0110 |
+| IM DEL EC | 0111 |
+| IM PLD BA | 1100 |
+| IT STB SB | 1111 |
+If cac is IT, BT, or DT, comm and reg may be omitted.
+If comm is PLD, reg may be ommitted.
+If comm is LCK or ULK, cac and reg may be omitted.
+** Misc commands
+JMP YZ: OP = 1010 0000
+CJP uY uZ: OP = 1010 0100
+PST: OP = 1010 1000
+STR aop a ers: OP = 1010 1100, X = a, Y = ers
+PSH YZ: OP = 1011 0000
+CPS uY uZ: OP = 1011 0100
+POP: OP = 1011 1000

@@ -111,14 +111,14 @@ entity mmix_alu is
    port (y, z, m, d : in bit_vector (0 to 63);
         x, h, r : out bit_vector (0 to 63);
         s : in bit_vector (0 to 5);
-        oflow, idc, even, zero, negative : out bit);
+        oflow, idc : out bit);
 end;
 
 component mmix_alu
    port (y, z, m, d : in bit_vector (0 to 63);
         x, h, r : out bit_vector (0 to 63);
         s : in bit_vector (0 to 5);
-        oflow, idc, even, zero, negative : out bit);
+        oflow, idc : out bit);
 end;
 
 architecture a1 of mmix_alu is
@@ -128,10 +128,6 @@ begin
   arith : mmix_alu_arith port map (y, z, d, ax, h, r, s(1 to 5), o, d);
   logic : mmix_alu_logic port map (y, z, m, lx, s(2 to 5));
   which : mux2 generic map (64) port map (s(0), ax, lx, x);
-  any : or_comb generic map (64) port map (y, nz);
   oflow <= o and not s(0);
   idc <= d and not s(0);
-  zero <= not nz;
-  even <= not y(63);
-  negative <= y(0);
 end;

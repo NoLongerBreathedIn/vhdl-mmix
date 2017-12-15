@@ -107,7 +107,7 @@ lookup_check_pt:
 	BIF -1 MEMNF
 	MVW ALUY.l MDR.l
 	MVO ALUY ALUX
-	BIF 1 ALUZR
+	BUN 1 ALUNZ
 	PGO cause_p
 	MVO ALUY MDR
 	POP
@@ -165,7 +165,7 @@ determine_pte:
 	MVW u21.l PTN
 	MVB CND ALUY.7
 	MVW ALUY.l B210A
-	BIF 8 ALUZR 		; to the MVW ALUY.l B210B
+	BUN 8 ALUNZ 		; to the MVW ALUY.l B210B
 	BIF 4 CND4
 	BUN 2 CND5
 	BIF 2 CND6
@@ -175,7 +175,7 @@ determine_pte:
 	SET ALUZ.7 4
 	BUN 37 FALS		; to the MVW u20.l B210A
 	MVW ALUY.l B210B
-	BIF 6 ALUZR		; to the MVW ALUY.l B210C
+	BUN 6 ALUNZ		; to the MVW ALUY.l B210C
 	BIF 2 CND4
 	BIF 1 CND5
 	PGO cause_p
@@ -183,7 +183,7 @@ determine_pte:
 	SET ALUZ.7 3
 	BUN 31 FALS		; to the MVW u20.l B210B
 	MVW ALUY.l B210C
-	BIF 8 ALUZR     	; to the MVW ALUY.l B210D
+	BUN 8 ALUNZ     	; to the MVW ALUY.l B210D
 	BIF 4 CND4
 	BIF 3 CND5
 	BUN 1 CND6
@@ -193,7 +193,7 @@ determine_pte:
 	SET ALUZ.7 2
 	BUN 23 FALS 		; to the MVW u20.l B210C
 	MVW ALUY.l B210D
-	BIF 7 ALUZR		; to the MVW ALUY.l B210E
+	BUN 7 ALUNZ		; to the MVW ALUY.l B210E
 	BIF 3 CND4
 	BIF 2 CND5
 	BIF 1 CND6
@@ -202,7 +202,7 @@ determine_pte:
 	SET ALUZ.7 1
 	BUN 16 FALS		; to the MVW u20.l B210D
 	MVW ALUY.l B210E
-	BIF 5 ALUZR
+	BUN 5 ALUNZ
 	BIF 4 CND4
 	BIF 3 CND5
 	BIF 2 CND6

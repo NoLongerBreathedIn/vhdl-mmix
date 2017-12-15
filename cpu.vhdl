@@ -86,8 +86,8 @@
 -- Remaining registers have no special meaning; plenty of those.
 --
 -- Iflags:
--- Iflag 0 is the ALU even flag.
--- Iflag 1 is the ALU zero flag.
+-- Iflag 0 is the ALU odd flag.
+-- Iflag 1 is the ALU nonzero flag.
 -- Iflag 2 is the ALU negative flag.
 -- Iflag 3 is the ALU error flag.
 -- Iflag 4 is the ALU frem-not-finished flag.
@@ -232,7 +232,7 @@ begin
   icj <= iporp and uop(2) and instx(5);
   ipop <= iporp and uop(2) and not (instx(5) or instx(6) or instx(7));
   popstk <= ipop;
-  pshstk <= iporp and not uop(2);;
+  pshstk <= iporp and not uop(2);
   iporp <= uop(0) and uop(1);
   doow <= uop(2) and (instx(7) or not uop(0));
   doot <= uop(1) and (instx(6) or not uop(0));
@@ -356,8 +356,7 @@ begin
                           oflags(28), oflags(29), clock, tcdo, iflags(7));
   alu : mmix_afu port map (uregs(1), uregs(2), rM, rD, rE, rAb,
                            uregs(0)(0 to 7), uregs(12)(0 to 7),
-                           uregs(3), rH, rR, rAa, iflags(0), iflags(1),
-                           iflags(2), iflags(4), iflags(3),
+                           uregs(3), rH, rR, rAa, iflags(4), iflags(3),
                            uregs(12)(8 to 11));
   ivs : or_comb generic map (61) port map (rI(0 to 60), insm);
   inz : or_comb generic map (3) port map (rI(61 to 63), ilnz);
@@ -376,6 +375,9 @@ begin
                         uregs(8)(16 to 23), uregs(8)(24 to 31),
                         uregs(12)(16 to 23), uregs(10)(16 to 31),
                         uregs(10)(32 to 63));
+  alunz : or_comb generic map (64) port map (uregs(1), iflags(1));
+  iflags(0) <= uregs(1)(63);
+  iflags(2) <= uregs(1)(0);
   sleep <= oflags(17);
   ii <= ilnz and not insm;
   iflags(13 to 15) <= o"0";
