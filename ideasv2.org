@@ -1,0 +1,93 @@
+* Instruction format
+Six bytes: OP, DEL, AOP, X, Y, Z.
+** OP format
+Bit 0 is 0 for ALU op and 1 for branches and special commands.
+*** If ALU op
+Bit 1 is hold bit: should next instruction take (for first cycle)
+held values of AOP, y, z? (This is to deal with issues of bit-flicker.)
+Bits 23 are X-style.
+0: store special output (high-half or remainder)
+to MMIX r(X)
+1: store to uX
+2: store to MMIX $X
+3: store to MMIX r(X)
+Bits 45 and 67 are Y-style and Z-style. The same conventions will apply. For Y:
+0: direct (y = Y)
+1: microcode (y = uY)
+2: MMIX general (y = $Y)
+3: MMIX special (y = r(Y))
+*** Otherwise
+Bit 1 is:
+0: control flow
+1: cache commands
+**** Cache commands
+Bit 2 is off for cache read/write, on otherwise.
+***** Cache read/write
+Bit 3 is off for read, on for write.
+
+(Reads use uZ as pointer, write to uX; writes use uZ as pointer,
+read from uY). 
+
+Bits 4 and 5 select the cache:
+0 for instruction memory
+1 for data memory
+2 for instruction translation
+3 for data translation
+
+Bits 6 and 7 select the size of stuff to read and write:
+0 for byte
+1 for wyde
+2 for tetra
+3 for octa
+***** Other cache commands
+Bit 3 is ignored.
+Bits 4-7 are decoded by the following table:
+| 4-7 | Cache | Command | Applied to |
+|-----+-------+---------+------------|
+|   0 | DM    | WRT     | BA         |
+|   1 | DM    | WRT     | A          |
+|   2 | DM    | WDL     | BA         |
+|   3 | DM    | WDL     | BO         |
+|   4 | DM    | DEL     | BA         |
+|   5 | DM    | DEL     | A          |
+|   6 | IM    | DEL     | BA         |
+|   7 | IM    | DEL     | A          |
+|   8 | DM    | PLD     | BA         |
+|   9 | DM    | FGT     | O          |
+|   A | DM    | LCK     | O          |
+|   B | DM    | ULK     | O          |
+|   C | IM    | PLD     | BA         |
+|   D | BT    | DEL     | A          |
+|   E | DT    | STB     | O          |
+|   F | IT    | STB     | O          |
+WRT: write dirty to core
+DEL: delete
+WDL: write, then delete
+PLD: preload
+FGT: forget (don't delete just yet).
+LCK: lock
+ULK: unlock
+STB: store last three bits of pointer
+
+DM: data memory
+IM: instruction memory
+DT: data translation
+IT: instruction translation
+BT: both translation
+
+BA: containing anything between uY and uZ inclusive
+BO: contained between uY and uZ inclusive
+A: anything at all
+O: containing uZ
+
+**** Control flow
+need to fit in branch, unconditional jump, push, pop,
+set errors in u255, computed push (to uY * 256)
+why branch? ready/contains, any on Y, negate.
+** DEL format
+Gray-coded. Decrement once a cycle; when 0, go to next instruction.
+On non-ALU ops, this is ignored.
+** AOP format
+MMIX instruction. FCMP-SRUI, OR-MXORI,
+also LDSF to lengthen floats and STSF to shorten doubles.
+Again, might do other things if not ALU op.
