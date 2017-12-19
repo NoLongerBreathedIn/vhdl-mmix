@@ -124,6 +124,8 @@ Bits 4 and 5 are:
 1 or 0 according to whether there are any errors (byte 1);
 new value of rA (bytes 4-7). Force errors from last byte of uY.
 This is the only non-ALU instruction that actually involves the ALU.
+If DEL is nonzero or the previous instruction is not an ALU op
+with the hold bit set, results of this are unpredictable.
 ****** pop/push
 Bits 4 and 5 are:
 0: Push location, jump to Y * 256 + Z + 1
@@ -141,7 +143,11 @@ this is to easily allow prevention of errors and make all-0 a no-op.
 * Special registers
 u255 is l[y]
 u0 is always 0.
+u1-u4 are the b1-b4 fields of rV;
+u5 is the s field, u6 is the r field,
+and u7 is the n and f fields.
 u254 is reserved for value of rQ when last read.
+
 * How to write instructions:
 aop is a MMIX op, del is a number.
 You may omit arbitrarily many of the trailing ones;
@@ -153,6 +159,7 @@ where x can be uX (XS = 0), $X (XS = 1), rX (XS = 2), or sX (XS = 3).
 y can be uY (YS = 0), $Y (YS = 1), rY (YS = 2), or Y (YS = 3);
 similarly for Z.
 ALH aop x y z, del: Same, except OP is 01 XS YS ZS.
+CPY x y: same as ALU 0 x y; AOP is all 0s.
 ** Conditional branch
 BIF ty amt key del: OP is 100 D TYPE, Y is amt % 256, D is 1 if amt < 0,
 | TYPE | ty  |
@@ -213,7 +220,7 @@ If comm is LCK or ULK, cac and reg may be omitted.
 JMP YZ: OP = 1010 0000
 CJP uY uZ: OP = 1010 0100
 PST: OP = 1010 1000
-STR aop a ers: OP = 1010 1100, X = a, Y = ers
+STR aop uX uY: OP = 1010 1100
 PSH YZ: OP = 1011 0000
 CPS uY uZ: OP = 1011 0100
 POP: OP = 1011 1000
