@@ -136,6 +136,27 @@ component not_gate
         x : out bit_vector (0 to len-1));
 end;
 
+entity al_reg is
+  generic (len : integer);
+  port (a, c : in bit;
+        d : in bit_vector (0 to len-1);
+        o : out bit_vector (0 to len-1));
+end;
+
+architecture behavioral of al_reg is
+    signal t : bit_vector (0 to len-1);
+begin
+    t <= d when a and c else unaffected;
+    o <= t when not c else unaffected;
+end;
+
+component al_reg
+  generic (len : integer);
+  port (a, c : in bit;
+        d : in bit_vector (0 to len-1);
+        o : out bit_vector (0 to len-1));
+end;
+
 entity da_reg is
   generic (lws, lbs : integer);
   port (a : in bit_vector (0 to 2**lws-1);
@@ -147,17 +168,15 @@ end;
 architecture behavioral of da_reg is
 begin
   base: if lws = 0 generate
-    signal t : bit_vector (0 to 2**lbs-1);
   begin
-    t <= d when a(0) and c else unaffected;
-    o <= t when not c else unaffected;
+    r : al_reg generic map (2**lbs) port map (a(0), c, d, o);
   end;
   rec: if lws > 0 generate
   begin
-    lhf : da_reg generic map (lws-1, lbs-1)
+    hhf : da_reg generic map (lws-1, lbs-1)
       port map (a(0 to 2**(lws-1)-1), c,
                 d(0 to 2**(lbs-1)-1), o(0 to 2**(lbs-1)-1));
-    hhf : da_reg generic map (lws-1, lbs-1)
+    lhf : da_reg generic map (lws-1, lbs-1)
       port map (a(2**(lws-1) to 2**lws-1), c,
                 d(2**(lbs-1) to 2**lbs-1), o(2**(lbs-1) to 2**lbs-1));
   end;

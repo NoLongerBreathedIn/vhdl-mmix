@@ -244,7 +244,7 @@ begin
                                             rfi, sdri, post(22));
   rh : aao_reg generic map (3, 6) port map (activate(24 to 31), rhw, clock,
                                             rhi, sdri, post(3));
-  ri : ad_reg port map (activate(96 to 103), clock, post(12));,
+  ri : ad_reg port map (activate(96 to 103), clock, sdri, post(12));,
   rk : fonreg8 port map (activate(120 to 127), clock, 30b"0"&rqi(31)&33b"0",
                          sdri, post(15));
   rq : fonreg8 port map (activate(128 to 135), clock, rqi, sdri, post(16));
