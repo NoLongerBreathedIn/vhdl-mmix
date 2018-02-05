@@ -1,8 +1,8 @@
 This is a microcode implementation of MMIX, in slightly-off VHDL.
 
-The following things have not been written:
-Virtual address translation caches
-Memory cache
+The following things have not been written:  
+Virtual address translation caches  
+Memory cache  
 The actual microcode
 
 The microcode implementation is very Harvard-architecture.
